@@ -8,6 +8,13 @@ using namespace cv;
 using namespace std; 
 
 #define COLOR Scalar(255, 200,0)
+#define RED Scalar(0, 200, 255)
+
+//#define LOWER_LIMIT 135
+#define LIMIT1 157.5
+#define LIMIT2 180
+#define LIMIT3 197.5
+//#define UPPER_LIMIT5 215 
 
 // drawPolyLine draws a poly line by joining 
 // successive points between the start and end indices. 
@@ -31,6 +38,20 @@ void drawPolyline
     
 }
 
+int segmentDetect(float angle)
+{
+  if(angle < LIMIT1) {
+    return 0;
+  } else if(angle > LIMIT1 && angle < LIMIT2) {
+    return 1;
+  } else if(angle > LIMIT2 && angle < LIMIT3) {
+    return 2;
+  } else {
+    return 3;
+  }
+}
+
+
 //detect headtilt
 void tiltRatio
 (
@@ -41,30 +62,6 @@ void tiltRatio
   const int lipEnd
 )
 {
-  // float jawX = 0.0;
-
-  // for(int i = jawStart; i <= jawEnd; i++)
-  // {
-  //   jawX = jawX + landmarks[i].x;
-  // }
-
-  // jawX = jawX / (jawEnd - jawStart);
-
-  // float lipX = 0.0;
-
-  // for(int i = lipStart; i <= lipEnd; i++)
-  // {
-  //   lipX = lipX + landmarks[i].x;
-  // }
-
-  // lipX = lipX / (lipEnd - lipStart);
-
-  // if(lipX < jawX)
-  // {
-  //   std::cout<< "left" << endl;
-  // } else  {
-  //   std::cout<< "right" << endl;
-  // }
 
   float minJ, maxJ, minL, maxL;
   float midJ, midL;
@@ -103,14 +100,33 @@ void tiltRatio
 
 
   angle = (midJ - midL) / ((minJ - maxJ)/2);
-  angle = std::acos(angle);
+  angle = acos(angle);
   angle = angle * (360/M_PI);
 
-  std::cout << "angle: " + to_string(angle) << endl;
+  //std::cout << "angle: " + to_string(angle) << endl;
+  //std::cout << "segment: " + to_string(segmentDetect(angle)) << endl;
 
 
 }
 
+void pitchRatio(
+  const vector<Point2f> &landmarks,
+  const int leftEdge,
+  const int tip,
+  const int rightEdge
+)
+{
+  //using law of cosines
+  //c2 = a2 + b2 - 2ab(cosC)
+  float leftEdge_square = pow(landmarks[leftEdge].x - landmarks[tip].x, 2) + pow(landmarks[leftEdge].y - landmarks[tip].y, 2);
+  float rightEdge_square = pow(landmarks[rightEdge].x - landmarks[tip].x, 2) + pow(landmarks[rightEdge].y - landmarks[tip].y, 2);
+  float base_square = pow(landmarks[rightEdge].x - landmarks[leftEdge].x, 2) + pow(landmarks[rightEdge].y - landmarks[leftEdge].y, 2);
+
+  float angle = (leftEdge_square + rightEdge_square - base_square) / (2*sqrt(leftEdge_square)*sqrt(rightEdge_square));
+  angle = acos(angle) * (360/M_PI);
+
+  std::cout << "nose angle: " + to_string(angle) << endl;
+}
 
 void drawLandmarks(Mat &im, vector<Point2f> &landmarks)
 {
@@ -128,6 +144,7 @@ void drawLandmarks(Mat &im, vector<Point2f> &landmarks)
       drawPolyline(im, landmarks, 60, 67, true);    // Inner lip
 
       tiltRatio(landmarks, 0, 16, 48, 59);
+      pitchRatio(landmarks, 31, 30, 35);
     }
     else 
     { // If the number of points is not 68, we do not know which 
