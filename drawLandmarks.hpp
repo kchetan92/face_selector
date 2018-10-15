@@ -1,5 +1,7 @@
 #include <iostream>
 #include <cmath>
+
+
 #define _USE_MATH_DEFINES
 #ifndef _renderFace_H_
 #define _renderFace_H_
@@ -10,10 +12,9 @@ using namespace std;
 #define COLOR Scalar(255, 200,0)
 #define RED Scalar(0, 200, 255)
 
-//#define LOWER_LIMIT 135
-#define LIMIT1 157.5
-#define LIMIT2 180
-#define LIMIT3 197.5
+#define LOWER_LIMIT 135
+#define UPPER_LIMIT 205
+#define NOSE_LIMIT 200
 //#define UPPER_LIMIT5 215 
 
 // drawPolyLine draws a poly line by joining 
@@ -40,20 +41,24 @@ void drawPolyline
 
 int segmentDetect(float angle)
 {
-  if(angle < LIMIT1) {
-    return 0;
-  } else if(angle > LIMIT1 && angle < LIMIT2) {
-    return 1;
-  } else if(angle > LIMIT2 && angle < LIMIT3) {
-    return 2;
-  } else {
-    return 3;
-  }
+  float normal_angle = angle - LOWER_LIMIT;
+  float range = UPPER_LIMIT - LOWER_LIMIT;
+
+   if(normal_angle < range/4) {
+     return 0;
+   }  else if(normal_angle < range/2) {
+     return 1;
+   }  else if(normal_angle < range*3/4) {
+     return 2;
+   }  else  {
+     return 3;
+   }
+
 }
 
 
 //detect headtilt
-void tiltRatio
+int tiltRatio
 (
   const vector<Point2f> &landmarks,
   const int jawStart,
@@ -106,10 +111,11 @@ void tiltRatio
   //std::cout << "angle: " + to_string(angle) << endl;
   //std::cout << "segment: " + to_string(segmentDetect(angle)) << endl;
 
+  return segmentDetect(angle);
 
 }
 
-void pitchRatio(
+int pitchRatio(
   const vector<Point2f> &landmarks,
   const int leftEdge,
   const int tip,
@@ -125,7 +131,47 @@ void pitchRatio(
   float angle = (leftEdge_square + rightEdge_square - base_square) / (2*sqrt(leftEdge_square)*sqrt(rightEdge_square));
   angle = acos(angle) * (360/M_PI);
 
-  std::cout << "nose angle: " + to_string(angle) << endl;
+  if(angle > 200) {
+    return 1;
+  } else {
+    return 0;
+  }
+}
+
+float oldEar = 0.0;
+
+float eyeEAR (int eyeStart, const vector<Point2f> &landmarks) {
+    float p2p6 = sqrt(pow(landmarks[eyeStart + 2].x - landmarks[eyeStart + 6].x, 2) + pow(landmarks[eyeStart + 2].y - landmarks[eyeStart + 6].y, 2));
+    float p3p5 = sqrt(pow(landmarks[eyeStart + 3].x - landmarks[eyeStart + 5].x, 2) + pow(landmarks[eyeStart + 3].y - landmarks[eyeStart + 5].y, 2));
+    float p1p4 = sqrt(pow(landmarks[eyeStart + 1].x - landmarks[eyeStart + 4].x, 2) + pow(landmarks[eyeStart + 1].y - landmarks[eyeStart + 4].y, 2));
+
+    return (p2p6 + p3p5)/(2*p1p4);
+}
+
+void detectBlink(
+  //https://www.pyimagesearch.com/2017/04/24/eye-blink-detection-opencv-python-dlib/
+  const vector<Point2f> &landmarks
+) {
+  /*
+    Left eye
+    p1-6: 37 - 42
+
+    Right eye
+    p1-6: 43 - 48
+
+    ear = (||p2-p6|| + ||p3-p5||)/(2*(||p1-p4||))
+  */
+
+  int leftEye = 36;
+  int rightEye = 42;
+  
+  float newEar = (eyeEAR(leftEye, landmarks) + eyeEAR(rightEye, landmarks))/2;
+
+  float perChange = ((oldEar - newEar)*100)/oldEar;
+  oldEar = newEar;
+
+  //std::cout << "EAR %change: " + to_string(perChange) << endl;
+
 }
 
 void drawLandmarks(Mat &im, vector<Point2f> &landmarks)
@@ -143,8 +189,14 @@ void drawLandmarks(Mat &im, vector<Point2f> &landmarks)
       drawPolyline(im, landmarks, 48, 59, true);    // Outer lip
       drawPolyline(im, landmarks, 60, 67, true);    // Inner lip
 
-      tiltRatio(landmarks, 0, 16, 48, 59);
-      pitchRatio(landmarks, 31, 30, 35);
+      int tilt = tiltRatio(landmarks, 0, 16, 48, 59);
+      int pitch = pitchRatio(landmarks, 31, 30, 35);
+
+      int choice = 4*pitch + tilt;
+
+      std::cout << "Choice " + to_string(choice) << endl;
+      
+      detectBlink(landmarks);
     }
     else 
     { // If the number of points is not 68, we do not know which 
@@ -156,6 +208,43 @@ void drawLandmarks(Mat &im, vector<Point2f> &landmarks)
       }
     }
     
+}
+
+float getFaceArea(vector<Point2f> &landmarks) {
+  float lowX = 0.0;
+  float highX = 0.0;
+  float lowY = 0.0;
+  float highY = 0.0;
+
+  if(landmarks.size() == 68) {
+    lowX = landmarks[0].x;
+    highX = landmarks[0].x;
+    lowY = landmarks[0].y;
+    highY = landmarks[0].y;
+
+    for (int i = 0; i < landmarks.size(); i++) {
+      if(landmarks[i].x < lowX) {
+        lowX = landmarks[i].x;
+      }
+
+      if(landmarks[i].y < lowY) {
+        lowY = landmarks[i].y;
+      }
+
+      if(landmarks[i].x > highX) {
+        highX = landmarks[i].x;
+      }
+
+      if(landmarks[i].y > highY) {
+        highY = landmarks[i].y;
+      }
+    }
+
+    float area = pow(highX - lowX, 2) + pow(highY - lowY, 2);
+    return area;
+  } else {
+    return 0.0;
+  }
 }
 
 #endif // _renderFace_H_

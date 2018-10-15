@@ -1,6 +1,10 @@
 #include <opencv2/opencv.hpp>
 #include <opencv2/face.hpp>
 #include "drawLandmarks.hpp"
+
+//https://curl.haxx.se/docs/install.html
+#include <stdio.h>
+#include <curl/curl.h>
  
  
 using namespace std;
@@ -8,11 +12,37 @@ using namespace cv;
 using namespace cv::face;
 
 // Compile command
-// g++ $(pkg-config --cflags --libs opencv) -std=c++11 face.cpp -o hellpCpp
+// g++ $(pkg-config --cflags --libs opencv) -std=c++11 face.cpp -o hellpCpp -lcurl
  
  
 int main(int argc,char** argv)
 {
+
+    CURL *curl;
+    CURLcode res;
+
+    curl_global_init(CURL_GLOBAL_DEFAULT);
+
+    curl = curl_easy_init();
+    if(curl) {
+      curl_easy_setopt(curl, CURLOPT_URL, "http://localhost:8080");
+      curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L);
+      curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 0L);
+
+      res = curl_easy_perform(curl);
+
+      if(res != CURLE_OK)
+      fprintf(stderr, "curl_easy_perform() failed: %s\n",
+              curl_easy_strerror(res));
+
+      curl_easy_cleanup(curl);  
+    }
+
+    curl_global_cleanup();
+
+
+
+
     // Load Face Detector
     CascadeClassifier faceDetector("haarcascade_frontalface_alt2.xml");
  
@@ -52,11 +82,20 @@ int main(int argc,char** argv)
        
       if(success)
       {
+        int biggestFace = 0;
+        float biggestFaceArea = 0.0;
         // If successful, render the landmarks on the face
         for(int i = 0; i < landmarks.size(); i++)
         {
-          drawLandmarks(frame, landmarks[i]);
+          float faceArea = getFaceArea(landmarks[i]);
+          if(faceArea > biggestFaceArea) {
+            biggestFaceArea = faceArea;
+            biggestFace = i;
+          }
         }
+
+        drawLandmarks(frame, landmarks[biggestFace]);
+
       }
  
       // Display results 
