@@ -72,7 +72,7 @@ int main(int argc,char** argv)
 
         //std::cout<<"face area: "<<biggestFaceArea;
 
-        if(biggestFaceArea > 150000) {
+        if(biggestFaceArea > 100000) {
           drawLandmarks(frame, landmarks[biggestFace]);
         }
 
