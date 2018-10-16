@@ -1,5 +1,6 @@
 #include <iostream>
 #include <cmath>
+#include "curlSend.hpp"
 
 
 #define _USE_MATH_DEFINES
@@ -15,6 +16,7 @@ using namespace std;
 #define LOWER_LIMIT 135
 #define UPPER_LIMIT 205
 #define NOSE_LIMIT 200
+
 //#define UPPER_LIMIT5 215 
 
 // drawPolyLine draws a poly line by joining 
@@ -44,16 +46,13 @@ int segmentDetect(float angle)
   float normal_angle = angle - LOWER_LIMIT;
   float range = UPPER_LIMIT - LOWER_LIMIT;
 
-   if(normal_angle < range/4) {
+   if(normal_angle < range/3) {
      return 0;
-   }  else if(normal_angle < range/2) {
+   }  else if(normal_angle < range*2/3) {
      return 1;
-   }  else if(normal_angle < range*3/4) {
-     return 2;
    }  else  {
-     return 3;
+     return 2;
    }
-
 }
 
 
@@ -139,6 +138,8 @@ int pitchRatio(
 }
 
 float oldEar = 0.0;
+float earHistory[] = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
+bool blinkHistory[] = {false, false, false, false, false, false};
 
 float eyeEAR (int eyeStart, const vector<Point2f> &landmarks) {
     float p2p6 = sqrt(pow(landmarks[eyeStart + 2].x - landmarks[eyeStart + 6].x, 2) + pow(landmarks[eyeStart + 2].y - landmarks[eyeStart + 6].y, 2));
@@ -148,8 +149,8 @@ float eyeEAR (int eyeStart, const vector<Point2f> &landmarks) {
     return (p2p6 + p3p5)/(2*p1p4);
 }
 
-void detectBlink(
-  //https://www.pyimagesearch.com/2017/04/24/eye-blink-detection-opencv-python-dlib/
+//https://www.pyimagesearch.com/2017/04/24/eye-blink-detection-opencv-python-dlib/
+float detectBlink(
   const vector<Point2f> &landmarks
 ) {
   /*
@@ -167,9 +168,33 @@ void detectBlink(
   
   float newEar = (eyeEAR(leftEye, landmarks) + eyeEAR(rightEye, landmarks))/2;
 
-  float perChange = ((oldEar - newEar)*100)/oldEar;
-  oldEar = newEar;
+  // float perChange = ((oldEar - newEar)*100)/oldEar;
+  // oldEar = newEar;
 
+  for(int i = 0; i < 5; i++) {
+    earHistory[i] = earHistory[i + 1];
+    blinkHistory[i] = blinkHistory[i+1];
+  }
+  earHistory[5] = newEar;
+
+  float lowestEar = 10.0;
+
+  for(int i = 0; i < 5; i++) {
+    if(earHistory[i] < lowestEar) {
+      lowestEar = earHistory[i];
+    }
+  }
+
+  float perChange = ((newEar - lowestEar)/lowestEar)*100;
+  bool recentBlink = blinkHistory[0] || blinkHistory[1] || blinkHistory[2] || blinkHistory[3] || blinkHistory[4] || blinkHistory[5];
+
+  if(perChange > 15 && !recentBlink) {
+    blinkHistory[5] = true;
+    return true;
+  } else {
+    blinkHistory[5] = false;
+    return false;
+  }
   //std::cout << "EAR %change: " + to_string(perChange) << endl;
 
 }
@@ -191,12 +216,15 @@ void drawLandmarks(Mat &im, vector<Point2f> &landmarks)
 
       int tilt = tiltRatio(landmarks, 0, 16, 48, 59);
       int pitch = pitchRatio(landmarks, 31, 30, 35);
+      bool blink = detectBlink(landmarks);
 
-      int choice = 4*pitch + tilt;
+      int choice = 3*pitch + tilt;
 
       std::cout << "Choice " + to_string(choice) << endl;
-      
-      detectBlink(landmarks);
+      std::cout << "Blink " + to_string(blink) << endl;
+
+      std::string action = "lookAt" + to_string(choice);
+      sendHTTP(choice, blink);
     }
     else 
     { // If the number of points is not 68, we do not know which 
