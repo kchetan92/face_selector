@@ -199,6 +199,9 @@ float detectBlink(
 
 }
 
+int choiceHistory[] = {0,0,1,0,0,0,0};
+int choiceHistoryLength = (sizeof(choiceHistory)/sizeof(*choiceHistory));
+int lastStare = 99;
 void drawLandmarks(Mat &im, vector<Point2f> &landmarks)
 {
     // Draw face for the 68-point model.
@@ -216,15 +219,32 @@ void drawLandmarks(Mat &im, vector<Point2f> &landmarks)
 
       int tilt = tiltRatio(landmarks, 0, 16, 48, 59);
       int pitch = pitchRatio(landmarks, 31, 30, 35);
-      bool blink = detectBlink(landmarks);
+      //bool blink = detectBlink(landmarks);
 
       int choice = 3*pitch + tilt;
 
       std::cout << "Choice " + to_string(choice) << endl;
-      std::cout << "Blink " + to_string(blink) << endl;
+      //std::cout << "Blink " + to_string(blink) << endl;
 
       std::string action = "lookAt" + to_string(choice);
-      sendHTTP(choice, blink);
+
+      bool stare = true;
+
+      for(int i=0; i<(choiceHistoryLength - 1); i++) {
+        stare = stare && (choiceHistory[i] == choiceHistory[i+1]);
+        choiceHistory[i] = choiceHistory[i+1];
+      }
+      choiceHistory[choiceHistoryLength - 1] = choice;
+      stare = stare && (choiceHistory[choiceHistoryLength - 2] == choiceHistory[choiceHistoryLength - 1]);
+      if(stare) {
+        stare = (choice != lastStare);
+      }
+
+      if(stare) {
+        lastStare = choice;
+      }
+
+      sendHTTP(choice, false, stare);
     }
     else 
     { // If the number of points is not 68, we do not know which 

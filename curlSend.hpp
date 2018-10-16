@@ -3,7 +3,10 @@
 CURL *curl;
 CURLcode res;
 
-void sendHTTP(int box, bool blink) {
+void sendHTTP(int box, bool blink, bool stare) {
+
+    std::cout<<"stare "<< (stare? "yes" : "no") << "\n";
+
     if(curl) {
         std::cout<<"send";
         //res = curl_easy_perform(curl);
@@ -17,7 +20,7 @@ void sendHTTP(int box, bool blink) {
         //curl_easy_perform(curl);
     }
 
-    std::string addrcp = "http://localhost:8080/cpp/look/" + std::to_string(box) + "/blink/" + (blink ? "yes" : "no");
+    std::string addrcp = "http://localhost:8080/cpp/look/" + std::to_string(box) + "/stare/" + (stare ? "yes" : "no");
     char addr[addrcp.length() + 1];
     strcpy(addr, addrcp.c_str());
 
